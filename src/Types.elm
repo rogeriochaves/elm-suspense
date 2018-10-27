@@ -6,10 +6,10 @@ import Suspense exposing (..)
 
 
 type alias Model =
-    { view : Html Msg
+    { suspenseModel : Suspense.Model
+    , view : Html Msg
     , searchInput : String
     , moviesCache : Cache (Result Http.Error (List Movie))
-    , suspenseModel : Suspense.Model
     }
 
 

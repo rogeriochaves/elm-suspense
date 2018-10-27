@@ -5,17 +5,17 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (CmdHtml, Context, fromHtml, getFromCache, mapCmdView, mapCmdViewList, timeout)
+import Suspense exposing (CmdHtml, fromView, getFromCache, mapCmdView, mapCmdViewList, timeout)
 import Types exposing (..)
 import Url
 
 
-view : Context Msg -> Model -> CmdHtml Msg
-view context model =
+view : Model -> CmdHtml Msg
+view model =
     mapCmdView
-        (timeout context
+        (timeout model.suspenseModel
             { ms = 400, fallback = text "Loading..." }
-            (resultsView context model)
+            (resultsView model)
         )
         (\resultsView_ ->
             div []
@@ -28,9 +28,9 @@ view context model =
         )
 
 
-resultsView : Context Msg -> Model -> CmdHtml Msg
-resultsView context model =
-    getFromCache context
+resultsView : Model -> CmdHtml Msg
+resultsView model =
+    getFromCache model.suspenseModel
         { cache = model.moviesCache
         , key = model.searchInput
         , load = loadMovies model.searchInput
@@ -39,7 +39,7 @@ resultsView context model =
             case data of
                 Ok movies ->
                     mapCmdViewList
-                        (List.map resultView movies)
+                        (List.map (resultView model) movies)
                         (\resultView_ ->
                             div
                                 []
@@ -50,17 +50,35 @@ resultsView context model =
                         )
 
                 Err _ ->
-                    fromHtml <| text "error loading movies"
+                    fromView <| text "error loading movies"
         )
 
 
-resultView : Movie -> CmdHtml Msg
-resultView result =
-    fromHtml <|
-        li []
-            [ img [ src <| "https://image.tmdb.org/t/p/w92" ++ result.posterPath ] []
-            , text result.name
-            ]
+resultView : Model -> Movie -> CmdHtml Msg
+resultView model result =
+    let
+        imgSrc =
+            "https://image.tmdb.org/t/p/w92" ++ result.posterPath
+    in
+    getFromCache model.suspenseModel
+        { cache = model.suspenseModel.imgsCache
+        , key = imgSrc
+        , load = loadImg imgSrc
+        }
+        (\data ->
+            fromView <|
+                li []
+                    [ img [ src imgSrc ] []
+                    , text result.name
+                    ]
+        )
+
+
+loadImg : String -> Cmd Msg
+loadImg src =
+    Http.send
+        (always <| SuspenseMsg <| Suspense.ImgLoaded src)
+        (Http.get src (Decode.succeed ()))
 
 
 loadMovies : String -> Cmd Msg
@@ -87,4 +105,5 @@ moviesDecoder =
                     ]
                 )
             )
+            |> Decode.map (List.take 3)
         )

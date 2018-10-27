@@ -21,20 +21,18 @@ init : () -> ( Model, Cmd Msg )
 init flags =
     let
         model =
-            { view = text ""
+            { suspenseModel = Suspense.init
+            , view = text ""
             , searchInput = ""
             , moviesCache = emptyCache
-            , suspenseModel = Suspense.init
             }
     in
     Suspense.updateView view ( model, Cmd.none )
 
 
 view : Model -> CmdHtml Msg
-view model =
+view =
     MovieList.view
-        { msg = SuspenseMsg, model = model.suspenseModel }
-        model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
