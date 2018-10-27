@@ -1,4 +1,4 @@
-module Suspense exposing (Cache, CmdHtml, CmdView(..), Context, Model, Msg(..), emptyCache, getFromCache, init, mapCmdView, saveToCache, timeout, update, updateView)
+module Suspense exposing (Cache, CmdHtml, Context, Model, Msg(..), emptyCache, fromHtml, getFromCache, init, mapCmdView, mapCmdViewList, saveToCache, timeout, update, updateView)
 
 import Dict exposing (Dict)
 import Html exposing (..)
@@ -159,6 +159,42 @@ mapCmdView cmdView render =
 
         Resume cmd child ->
             Resume cmd (render <| child)
+
+
+mapCmdViewList : List (CmdView view msg) -> (List view -> view) -> CmdView view msg
+mapCmdViewList cmdViewList render =
+    let
+        result =
+            List.foldl
+                (\cmdView result_ ->
+                    case cmdView of
+                        Resume cmd item ->
+                            { result_
+                                | cmds = result_.cmds ++ [ cmd ]
+                                , list = result_.list ++ [ item ]
+                            }
+
+                        Suspend key cmd item ->
+                            { result_
+                                | resume = True
+                                , cmds = result_.cmds ++ [ cmd ]
+                                , list = result_.list ++ (Maybe.map (\i -> [ i ]) item |> Maybe.withDefault [])
+                                , key = result_.key ++ key
+                            }
+                )
+                { resume = True, cmds = [], list = [], key = "" }
+                cmdViewList
+    in
+    if result.resume then
+        Resume (Cmd.batch result.cmds) (render result.list)
+
+    else
+        Suspend result.key (Cmd.batch result.cmds) (Just <| render result.list)
+
+
+fromHtml : view -> CmdView view msg
+fromHtml =
+    Resume Cmd.none
 
 
 timeout : Context msg -> { ms : Float, fallback : view } -> CmdView view msg -> CmdView view msg

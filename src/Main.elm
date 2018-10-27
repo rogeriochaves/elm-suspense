@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Html exposing (..)
 import MovieList
-import Suspense exposing (Cache, CmdHtml, CmdView(..), emptyCache, saveToCache)
+import Suspense exposing (Cache, CmdHtml, emptyCache, saveToCache)
 import Types exposing (..)
 
 
