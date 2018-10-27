@@ -44,7 +44,12 @@ update msg model =
             ( { model | searchInput = search }, Cmd.none )
 
         MoviesLoaded query result ->
-            ( { model | moviesCache = saveToCache query result model.moviesCache }, Cmd.none )
+            ( { model
+                | moviesCache =
+                    saveToCache query result (query == model.searchInput) model.moviesCache
+              }
+            , Cmd.none
+            )
 
         SuspenseMsg msg_ ->
             let

@@ -6,13 +6,8 @@ import Process
 import Task
 
 
-type CacheItem a
-    = Requested
-    | Cached a
-
-
 type alias Cache a =
-    { current : Maybe a, store : Dict String (CacheItem a) }
+    { current : Maybe a, store : Dict String a }
 
 
 emptyCache : Cache a
@@ -20,10 +15,18 @@ emptyCache =
     { current = Nothing, store = Dict.empty }
 
 
-saveToCache : String -> a -> Cache a -> Cache a
-saveToCache key item cache =
-    { current = Just item
-    , store = Dict.insert key (Cached item) cache.store
+saveToCache : String -> a -> Bool -> Cache a -> Cache a
+saveToCache key item isCurrent cache =
+    let
+        current =
+            if isCurrent then
+                Just item
+
+            else
+                cache.current
+    in
+    { current = current
+    , store = Dict.insert key item cache.store
     }
 
 
@@ -40,10 +43,13 @@ type alias CmdHtml msg =
 type Msg
     = StartTimeout String Float
     | EndTimeout String
+    | CacheRequest String
 
 
 type alias Model =
-    { timedOut : { key : String, state : TimedOut } }
+    { timedOut : { key : String, state : TimedOut }
+    , requestedToCache : List String
+    }
 
 
 type alias Context msg =
@@ -58,7 +64,9 @@ type TimedOut
 
 init : Model
 init =
-    { timedOut = { key = "", state = NotStarted } }
+    { timedOut = { key = "", state = NotStarted }
+    , requestedToCache = []
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -72,6 +80,9 @@ update msg model =
 
         EndTimeout key ->
             ( { model | timedOut = { key = key, state = TimedOut } }, Cmd.none )
+
+        CacheRequest key ->
+            ( { model | requestedToCache = model.requestedToCache ++ [ key ] }, Cmd.none )
 
 
 updateView : ({ model | view : view } -> CmdView view msg) -> ( { model | view : view }, Cmd msg ) -> ( { model | view : view }, Cmd msg )
@@ -100,23 +111,33 @@ updateView view ( model_, updateCmd ) =
             ( { model_ | view = view_ }, Cmd.batch [ viewCmd, updateCmd ] )
 
 
-getFromCache : { cache : Cache a, key : String, load : Cmd msg } -> (a -> view) -> CmdView view msg
-getFromCache { cache, key, load } render =
-    case ( Dict.get key cache.store, cache.current ) of
-        ( Just (Cached result), _ ) ->
+getFromCache : Context msg -> { cache : Cache a, key : String, load : Cmd msg } -> (a -> view) -> CmdView view msg
+getFromCache { msg, model } { cache, key, load } render =
+    let
+        cmd =
+            Cmd.batch
+                [ generateMsg (msg <| CacheRequest key), load ]
+    in
+    case ( Dict.get key cache.store, List.member key model.requestedToCache, cache.current ) of
+        -- Cache Hit
+        ( Just result, _, _ ) ->
             Render (render result)
 
-        ( Just Requested, Just current ) ->
+        -- Cache Miss, but requested, old data present to render
+        ( Nothing, True, Just current ) ->
             Suspend key Cmd.none (Just <| render current)
 
-        ( Just Requested, Nothing ) ->
+        -- Cache Miss, but requested, nothing to render
+        ( Nothing, True, Nothing ) ->
             Suspend key Cmd.none Nothing
 
-        ( Nothing, Just current ) ->
-            Suspend key load (Just <| render current)
+        -- Cache miss, not requested, old data present to render
+        ( Nothing, False, Just current ) ->
+            Suspend key cmd (Just <| render current)
 
-        ( Nothing, Nothing ) ->
-            Suspend key load Nothing
+        -- Cache miss, not requested, nothing to render
+        ( Nothing, False, Nothing ) ->
+            Suspend key cmd Nothing
 
 
 mapCmdView : CmdView view msg -> (view -> view) -> CmdView view msg
@@ -140,9 +161,8 @@ timeout { msg, model } { ms, fallback } cmdView =
 
         Suspend key cmd child ->
             let
-                timeoutCmd =
-                    Task.succeed ()
-                        |> Task.perform (always <| msg <| StartTimeout key ms)
+                cmd_ =
+                    Cmd.batch [ generateMsg (msg <| StartTimeout key ms), cmd ]
 
                 child_ =
                     child |> Maybe.withDefault fallback
@@ -156,10 +176,16 @@ timeout { msg, model } { ms, fallback } cmdView =
                         Resume Cmd.none child_
 
                     NotStarted ->
-                        Resume (Cmd.batch [ timeoutCmd, cmd ]) child_
+                        Resume cmd_ child_
 
             else
-                Resume (Cmd.batch [ timeoutCmd, cmd ]) child_
+                Resume cmd_ child_
 
         Resume cmd child ->
             Resume cmd child
+
+
+generateMsg : msg -> Cmd msg
+generateMsg msg =
+    Task.succeed ()
+        |> Task.perform (always <| msg)

@@ -15,7 +15,7 @@ view context model =
     mapCmdView
         (timeout context
             { ms = 400, fallback = text "Loading..." }
-            (resultsView model)
+            (resultsView context model)
         )
         (\resultsView_ ->
             div []
@@ -28,9 +28,9 @@ view context model =
         )
 
 
-resultsView : Model -> CmdHtml Msg
-resultsView model =
-    getFromCache
+resultsView : Context Msg -> Model -> CmdHtml Msg
+resultsView context model =
+    getFromCache context
         { cache = model.moviesCache
         , key = model.searchInput
         , load = loadMovies model.searchInput
