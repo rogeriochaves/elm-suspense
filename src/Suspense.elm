@@ -1,13 +1,30 @@
-module Suspense exposing (Cache(..), CmdHtml, CmdView(..), Context, Model, Msg(..), getFromCache, init, mapCmdView, timeout, update)
+module Suspense exposing (Cache, CmdHtml, CmdView(..), Context, Model, Msg(..), emptyCache, getFromCache, init, mapCmdView, saveToCache, timeout, update, updateView)
 
+import Dict exposing (Dict)
 import Html exposing (..)
 import Process
 import Task
 
 
-type Cache a
-    = Empty
-    | Cached String a
+type CacheItem a
+    = Requested
+    | Cached a
+
+
+type alias Cache a =
+    { current : Maybe a, store : Dict String (CacheItem a) }
+
+
+emptyCache : Cache a
+emptyCache =
+    { current = Nothing, store = Dict.empty }
+
+
+saveToCache : String -> a -> Cache a -> Cache a
+saveToCache key item cache =
+    { current = Just item
+    , store = Dict.insert key (Cached item) cache.store
+    }
 
 
 type CmdView view msg
@@ -57,17 +74,48 @@ update msg model =
             ( { model | timedOut = { key = key, state = TimedOut } }, Cmd.none )
 
 
+updateView : ({ model | view : view } -> CmdView view msg) -> ( { model | view : view }, Cmd msg ) -> ( { model | view : view }, Cmd msg )
+updateView view ( model_, updateCmd ) =
+    let
+        updatedView =
+            view model_
+    in
+    case updatedView of
+        Render view_ ->
+            ( { model_ | view = view_ }, updateCmd )
+
+        Suspend _ viewCmd view_ ->
+            case view_ of
+                Just previousView ->
+                    ( { model_ | view = previousView }, Cmd.batch [ viewCmd, updateCmd ] )
+
+                Nothing ->
+                    let
+                        _ =
+                            Debug.log "Warning: nobody recovered from a suspended view and there was no previous state, so we have nothing to render"
+                    in
+                    ( model_, Cmd.batch [ viewCmd, updateCmd ] )
+
+        Resume viewCmd view_ ->
+            ( { model_ | view = view_ }, Cmd.batch [ viewCmd, updateCmd ] )
+
+
 getFromCache : { cache : Cache a, key : String, load : Cmd msg } -> (a -> view) -> CmdView view msg
 getFromCache { cache, key, load } render =
-    case cache of
-        Cached key_ result ->
-            if key_ == key then
-                Render (render result)
+    case ( Dict.get key cache.store, cache.current ) of
+        ( Just (Cached result), _ ) ->
+            Render (render result)
 
-            else
-                Suspend key load (Just <| render result)
+        ( Just Requested, Just current ) ->
+            Suspend key Cmd.none (Just <| render current)
 
-        Empty ->
+        ( Just Requested, Nothing ) ->
+            Suspend key Cmd.none Nothing
+
+        ( Nothing, Just current ) ->
+            Suspend key load (Just <| render current)
+
+        ( Nothing, Nothing ) ->
             Suspend key load Nothing
 
 

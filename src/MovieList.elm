@@ -1,6 +1,7 @@
 module MovieList exposing (view)
 
 import Html exposing (..)
+import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
@@ -30,7 +31,7 @@ view context model =
 resultsView : Model -> CmdHtml Msg
 resultsView model =
     getFromCache
-        { cache = model.searchResult
+        { cache = model.moviesCache
         , key = model.searchInput
         , load = loadMovies model.searchInput
         }
@@ -41,15 +42,20 @@ resultsView model =
                         [ text "Results:"
                         , br [] []
                         , ul []
-                            (List.map
-                                (\{ name } -> li [] [ text name ])
-                                movies
-                            )
+                            (List.map resultView movies)
                         ]
 
                 Err _ ->
                     text "error loading movies"
         )
+
+
+resultView : Movie -> Html Msg
+resultView result =
+    li []
+        [ img [ src <| "https://image.tmdb.org/t/p/w92" ++ result.posterPath ] []
+        , text result.name
+        ]
 
 
 loadMovies : String -> Cmd Msg
@@ -68,7 +74,12 @@ moviesDecoder : Decode.Decoder (List Movie)
 moviesDecoder =
     Decode.field "results"
         (Decode.list
-            (Decode.field "title" Decode.string
-                |> Decode.map Movie
+            (Decode.map2 Movie
+                (Decode.field "title" Decode.string)
+                (Decode.oneOf
+                    [ Decode.field "poster_path" Decode.string
+                    , Decode.succeed ""
+                    ]
+                )
             )
         )

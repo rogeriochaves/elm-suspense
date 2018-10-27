@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Html exposing (..)
 import MovieList
-import Suspense exposing (Cache(..), CmdHtml, CmdView(..))
+import Suspense exposing (Cache, CmdHtml, CmdView(..), emptyCache, saveToCache)
 import Types exposing (..)
 
 
@@ -12,7 +12,7 @@ main =
     Browser.element
         { init = init
         , view = .view
-        , update = \msg model -> updateView <| update msg model
+        , update = \msg model -> Suspense.updateView view <| update msg model
         , subscriptions = always Sub.none
         }
 
@@ -23,11 +23,11 @@ init flags =
         model =
             { view = text ""
             , searchInput = ""
-            , searchResult = Empty
+            , moviesCache = emptyCache
             , suspenseModel = Suspense.init
             }
     in
-    updateView ( model, Cmd.none )
+    Suspense.updateView view ( model, Cmd.none )
 
 
 view : Model -> CmdHtml Msg
@@ -44,11 +44,7 @@ update msg model =
             ( { model | searchInput = search }, Cmd.none )
 
         MoviesLoaded query result ->
-            if model.searchInput == query then
-                ( { model | searchResult = Cached query result }, Cmd.none )
-
-            else
-                ( model, Cmd.none )
+            ( { model | moviesCache = saveToCache query result model.moviesCache }, Cmd.none )
 
         SuspenseMsg msg_ ->
             let
@@ -56,27 +52,3 @@ update msg model =
                     Suspense.update msg_ model.suspenseModel
             in
             ( { model | suspenseModel = model_ }, Cmd.map SuspenseMsg cmd )
-
-
-updateView : ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
-updateView ( model_, updateCmd ) =
-    let
-        updatedView =
-            view model_
-    in
-    case updatedView of
-        Render view_ ->
-            ( { model_ | view = view_ }, updateCmd )
-
-        Suspend _ viewCmd view_ ->
-            case view_ of
-                Just previousView ->
-                    ( { model_ | view = previousView }, Cmd.batch [ viewCmd, updateCmd ] )
-
-                Nothing ->
-                    ( { model_ | view = text "Warning: nobody recovered from a suspended view and there was no previous state, so we have nothing to render" }
-                    , Cmd.batch [ viewCmd, updateCmd ]
-                    )
-
-        Resume viewCmd view_ ->
-            ( { model_ | view = view_ }, Cmd.batch [ viewCmd, updateCmd ] )
