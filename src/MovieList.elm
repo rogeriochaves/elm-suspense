@@ -4,15 +4,18 @@ import Html exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (..)
+import Suspense exposing (CmdHtml, Context, getFromCache, mapCmdView, timeout)
 import Types exposing (..)
 import Url
 
 
-view : Model -> CmdHtml Msg
-view model =
+view : Context Msg -> Model -> CmdHtml Msg
+view context model =
     mapCmdView
-        (resultsView model)
+        (timeout context
+            { ms = 400, fallback = text "Loading..." }
+            (resultsView model)
+        )
         (\resultsView_ ->
             div []
                 [ text "Movie Search"
@@ -44,11 +47,7 @@ resultsView model =
                             )
                         ]
 
-                Err e ->
-                    let
-                        _ =
-                            Debug.log "err" e
-                    in
+                Err _ ->
                     text "error loading movies"
         )
 
@@ -61,7 +60,7 @@ loadMovies query =
                 ++ Url.percentEncode query
     in
     Http.send
-        (SearchMovies query)
+        (MoviesLoaded query)
         (Http.get url moviesDecoder)
 
 

@@ -9,6 +9,7 @@ type alias Model =
     { view : Html Msg
     , searchInput : String
     , searchResult : Cache (Result Http.Error (List Movie))
+    , suspenseModel : Suspense.Model
     }
 
 
@@ -19,4 +20,5 @@ type alias Movie =
 
 type Msg
     = UpdateSearch String
-    | SearchMovies String (Result Http.Error (List Movie))
+    | MoviesLoaded String (Result Http.Error (List Movie))
+    | SuspenseMsg Suspense.Msg
