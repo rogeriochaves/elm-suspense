@@ -5,7 +5,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (CmdHtml, Context, getFromCache, mapCmdView, timeout)
+import Suspense exposing (CmdHtml, CmdView(..), Context, getFromCache, mapCmdView, timeout)
 import Types exposing (..)
 import Url
 
@@ -36,17 +36,18 @@ resultsView context model =
         , load = loadMovies model.searchInput
         }
         (\data ->
-            case data of
-                Ok movies ->
-                    div []
-                        [ text "Results:"
-                        , br [] []
-                        , ul []
-                            (List.map resultView movies)
-                        ]
+            Resume Cmd.none <|
+                case data of
+                    Ok movies ->
+                        div []
+                            [ text "Results:"
+                            , br [] []
+                            , ul []
+                                (List.map resultView movies)
+                            ]
 
-                Err _ ->
-                    text "error loading movies"
+                    Err _ ->
+                        text "error loading movies"
         )
 
 

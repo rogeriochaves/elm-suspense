@@ -31,8 +31,7 @@ saveToCache key item isCurrent cache =
 
 
 type CmdView view msg
-    = Render view
-    | Suspend String (Cmd msg) (Maybe view)
+    = Suspend String (Cmd msg) (Maybe view)
     | Resume (Cmd msg) view
 
 
@@ -92,9 +91,6 @@ updateView view ( model_, updateCmd ) =
             view model_
     in
     case updatedView of
-        Render view_ ->
-            ( { model_ | view = view_ }, updateCmd )
-
         Suspend _ viewCmd view_ ->
             case view_ of
                 Just previousView ->
@@ -111,7 +107,7 @@ updateView view ( model_, updateCmd ) =
             ( { model_ | view = view_ }, Cmd.batch [ viewCmd, updateCmd ] )
 
 
-getFromCache : Context msg -> { cache : Cache a, key : String, load : Cmd msg } -> (a -> view) -> CmdView view msg
+getFromCache : Context msg -> { cache : Cache a, key : String, load : Cmd msg } -> (a -> CmdView view msg) -> CmdView view msg
 getFromCache { msg, model } { cache, key, load } render =
     let
         cmd =
@@ -121,11 +117,21 @@ getFromCache { msg, model } { cache, key, load } render =
     case ( Dict.get key cache.store, List.member key model.requestedToCache, cache.current ) of
         -- Cache Hit
         ( Just result, _, _ ) ->
-            Render (render result)
+            case render result of
+                Suspend _ cmd_ child ->
+                    Suspend key cmd_ child
+
+                Resume cmd_ child ->
+                    Resume cmd_ child
 
         -- Cache Miss, but requested, old data present to render
         ( Nothing, True, Just current ) ->
-            Suspend key Cmd.none (Just <| render current)
+            case render current of
+                Suspend _ cmd_ child ->
+                    Suspend key cmd_ child
+
+                Resume cmd_ child ->
+                    Suspend key cmd_ (Just <| child)
 
         -- Cache Miss, but requested, nothing to render
         ( Nothing, True, Nothing ) ->
@@ -133,7 +139,12 @@ getFromCache { msg, model } { cache, key, load } render =
 
         -- Cache miss, not requested, old data present to render
         ( Nothing, False, Just current ) ->
-            Suspend key cmd (Just <| render current)
+            case render current of
+                Suspend _ cmd_ child ->
+                    Suspend key (Cmd.batch [ cmd, cmd_ ]) child
+
+                Resume cmd_ child ->
+                    Suspend key (Cmd.batch [ cmd, cmd_ ]) (Just <| child)
 
         -- Cache miss, not requested, nothing to render
         ( Nothing, False, Nothing ) ->
@@ -143,9 +154,6 @@ getFromCache { msg, model } { cache, key, load } render =
 mapCmdView : CmdView view msg -> (view -> view) -> CmdView view msg
 mapCmdView cmdView render =
     case cmdView of
-        Render child ->
-            Render (render child)
-
         Suspend key cmd child ->
             Suspend key cmd (Maybe.map render child)
 
@@ -156,9 +164,6 @@ mapCmdView cmdView render =
 timeout : Context msg -> { ms : Float, fallback : view } -> CmdView view msg -> CmdView view msg
 timeout { msg, model } { ms, fallback } cmdView =
     case cmdView of
-        Render child ->
-            Render child
-
         Suspend key cmd child ->
             let
                 cmd_ =
