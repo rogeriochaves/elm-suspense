@@ -1,4 +1,4 @@
-module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, init, mapCmdView, mapCmdViewList, saveToCache, timeout, update, updateView)
+module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, init, mapCmdView, mapCmdViewList, saveToCache, snapshot, timeout, update, updateView)
 
 import Dict exposing (Dict)
 import Html exposing (..)
@@ -11,49 +11,41 @@ type alias CacheKey =
 
 
 type alias Cache a =
-    { current : Maybe a, store : Dict CacheKey a }
+    Dict CacheKey a
 
 
 emptyCache : Cache a
 emptyCache =
-    { current = Nothing, store = Dict.empty }
+    Dict.empty
 
 
-saveToCache : CacheKey -> a -> Bool -> Cache a -> Cache a
-saveToCache key item isCurrent cache =
-    let
-        current =
-            if isCurrent then
-                Just item
-
-            else
-                cache.current
-    in
-    { current = current
-    , store = Dict.insert key item cache.store
-    }
+saveToCache : CacheKey -> a -> Cache a -> Cache a
+saveToCache key item cache =
+    Dict.insert key item cache
 
 
 type CmdView view msg
-    = Suspend CacheKey (List Msg) (Cmd msg) (Maybe view)
-    | Resume CacheKey (List Msg) (Cmd msg) view
+    = Suspend CacheKey (List (Msg view)) (Cmd msg) (Maybe view)
+    | Resume CacheKey (List (Msg view)) (Cmd msg) view
 
 
 type alias CmdHtml msg =
     CmdView (Html msg) msg
 
 
-type Msg
+type Msg view
     = StartTimeout CacheKey Float
     | EndTimeout CacheKey
     | CacheRequest CacheKey
     | ImgLoaded CacheKey
+    | SaveSnapshot CacheKey view
 
 
-type alias Model =
+type alias Model view =
     { timedOut : { key : CacheKey, state : TimedOut }
     , requestedToCache : List CacheKey
     , imgsCache : Cache ()
+    , snapshotsCache : Cache view
     }
 
 
@@ -63,15 +55,16 @@ type TimedOut
     | TimedOut
 
 
-init : Model
+init : Model view
 init =
     { timedOut = { key = "", state = NotStarted }
     , requestedToCache = []
     , imgsCache = emptyCache
+    , snapshotsCache = emptyCache
     }
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg view -> Model view -> ( Model view, Cmd (Msg view) )
 update msg model =
     case msg of
         StartTimeout key ms ->
@@ -87,13 +80,14 @@ update msg model =
             ( { model | requestedToCache = model.requestedToCache ++ [ key ] }, Cmd.none )
 
         ImgLoaded key ->
-            ( { model | imgsCache = saveToCache key () False model.imgsCache }
-            , Cmd.none
-            )
+            ( { model | imgsCache = saveToCache key () model.imgsCache }, Cmd.none )
+
+        SaveSnapshot key view ->
+            ( { model | snapshotsCache = saveToCache key view model.snapshotsCache }, Cmd.none )
 
 
-updateView : ({ model | view : view, suspenseModel : Model } -> CmdView view msg) -> ( { model | view : view, suspenseModel : Model }, Cmd msg ) -> ( { model | view : view, suspenseModel : Model }, Cmd msg )
-updateView view ( model, updateCmd ) =
+updateView : (Msg view -> msg) -> ({ model | view : view, suspenseModel : Model view } -> CmdView view msg) -> ( { model | view : view, suspenseModel : Model view }, Cmd msg ) -> ( { model | view : view, suspenseModel : Model view }, Cmd msg )
+updateView msgMapper view ( model, updateCmd ) =
     let
         updatedView =
             view model
@@ -118,7 +112,7 @@ updateView view ( model, updateCmd ) =
             in
             case view_ of
                 Just previousView ->
-                    ( { model | view = previousView, suspenseModel = suspenseModel }, Cmd.batch [ viewCmd, updateCmd ] )
+                    ( { model | view = previousView, suspenseModel = suspenseModel }, Cmd.batch [ viewCmd, updateCmd, Cmd.map msgMapper suspenseCmds ] )
 
                 Nothing ->
                     let
@@ -132,14 +126,14 @@ updateView view ( model, updateCmd ) =
                 ( suspenseModel, suspenseCmds ) =
                     foldMsgs msgs
             in
-            ( { model | view = view_, suspenseModel = suspenseModel }, Cmd.batch [ viewCmd, updateCmd ] )
+            ( { model | view = view_, suspenseModel = suspenseModel }, Cmd.batch [ viewCmd, updateCmd, Cmd.map msgMapper suspenseCmds ] )
 
 
-getFromCache : Model -> { cache : Cache a, key : CacheKey, load : Cmd msg } -> (a -> CmdView view msg) -> CmdView view msg
+getFromCache : Model view -> { cache : Cache a, key : CacheKey, load : Cmd msg } -> (a -> CmdView view msg) -> CmdView view msg
 getFromCache model { cache, key, load } render =
-    case ( Dict.get key cache.store, List.member key model.requestedToCache, cache.current ) of
+    case ( Dict.get key cache, List.member key model.requestedToCache ) of
         -- Cache Hit
-        ( Just result, _, _ ) ->
+        ( Just result, _ ) ->
             case render result of
                 Suspend _ msgs cmd_ child ->
                     Suspend key msgs cmd_ child
@@ -147,30 +141,12 @@ getFromCache model { cache, key, load } render =
                 Resume _ msgs cmd_ child ->
                     Resume key msgs cmd_ child
 
-        -- Cache Miss, but requested, old data present to render
-        ( Nothing, True, Just current ) ->
-            case render current of
-                Suspend _ msgs cmd_ child ->
-                    Suspend key msgs cmd_ child
-
-                Resume _ msgs cmd_ child ->
-                    Suspend key msgs cmd_ (Just <| child)
-
-        -- Cache Miss, but requested, nothing to render
-        ( Nothing, True, Nothing ) ->
+        -- Cache Miss, but requested
+        ( Nothing, True ) ->
             Suspend key [] Cmd.none Nothing
 
-        -- Cache miss, not requested, old data present to render
-        ( Nothing, False, Just current ) ->
-            case render current of
-                Suspend _ msgs cmd_ child ->
-                    Suspend key (msgs ++ [ CacheRequest key ]) load child
-
-                Resume _ msgs cmd_ child ->
-                    Suspend key (msgs ++ [ CacheRequest key ]) load (Just <| child)
-
-        -- Cache miss, not requested, nothing to render
-        ( Nothing, False, Nothing ) ->
+        -- Cache miss, not requested
+        ( Nothing, False ) ->
             Suspend key [ CacheRequest key ] load Nothing
 
 
@@ -223,7 +199,7 @@ fromView =
     Resume "" [] Cmd.none
 
 
-timeout : Model -> { ms : Float, fallback : view } -> CmdView view msg -> CmdView view msg
+timeout : Model view -> { ms : Float, fallback : view } -> CmdView view msg -> CmdView view msg
 timeout model { ms, fallback } cmdView =
     case cmdView of
         Suspend key msgs cmd child ->
@@ -247,3 +223,16 @@ timeout model { ms, fallback } cmdView =
 
         Resume key msgs cmd child ->
             Resume key msgs cmd child
+
+
+snapshot : Model view -> { key : CacheKey } -> CmdView view msg -> CmdView view msg
+snapshot model { key } cmdView =
+    case ( cmdView, Dict.get key model.snapshotsCache ) of
+        ( Resume key_ msgs cmd child, _ ) ->
+            Resume key_ (msgs ++ [ SaveSnapshot key child ]) cmd child
+
+        ( Suspend key_ msgs cmd _, Just snapshot_ ) ->
+            Suspend key_ msgs cmd (Just snapshot_)
+
+        ( _, Nothing ) ->
+            cmdView

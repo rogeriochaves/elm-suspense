@@ -5,7 +5,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (CmdHtml, fromView, getFromCache, mapCmdView, mapCmdViewList, timeout)
+import Suspense exposing (CmdHtml, fromView, getFromCache, mapCmdView, mapCmdViewList, snapshot, timeout)
 import Types exposing (..)
 import Url
 
@@ -15,7 +15,10 @@ view model =
     mapCmdView
         (timeout model.suspenseModel
             { ms = 400, fallback = text "Loading..." }
-            (resultsView model)
+            (snapshot model.suspenseModel
+                { key = "moviesListTimeout" }
+                (resultsView model)
+            )
         )
         (\resultsView_ ->
             div []

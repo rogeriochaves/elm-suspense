@@ -12,7 +12,7 @@ main =
     Browser.element
         { init = init
         , view = .view
-        , update = \msg model -> Suspense.updateView view <| update msg model
+        , update = \msg model -> Suspense.updateView SuspenseMsg view <| update msg model
         , subscriptions = always Sub.none
         }
 
@@ -27,7 +27,7 @@ init flags =
             , moviesCache = emptyCache
             }
     in
-    Suspense.updateView view ( model, Cmd.none )
+    Suspense.updateView SuspenseMsg view ( model, Cmd.none )
 
 
 view : Model -> CmdHtml Msg
@@ -42,12 +42,7 @@ update msg model =
             ( { model | searchInput = search }, Cmd.none )
 
         MoviesLoaded query result ->
-            ( { model
-                | moviesCache =
-                    saveToCache query result (query == model.searchInput) model.moviesCache
-              }
-            , Cmd.none
-            )
+            ( { model | moviesCache = saveToCache query result model.moviesCache }, Cmd.none )
 
         SuspenseMsg msg_ ->
             let
