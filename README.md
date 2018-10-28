@@ -100,7 +100,7 @@ myViewWithImg model =
 
 ### Other details
 
-There are also other helper functions like `mapCmdView` and `mapCmdViewList` to help you wrapping the html inside the suspense features, and you also need to add some boilerplate on your main `Msg`, `Model` and `Update` for all this architectural change to work. The the `src/` folder for more examples.
+There are also other helper functions like `mapCmdView` and `mapCmdViewList` to help you wrapping the html inside the suspense features, and you also need to add some boilerplate on your main `Msg`, `Model` and `Update` for all this architectural change to work. Check the `src/` folder for more examples.
 
 ## Run it yourself
 
