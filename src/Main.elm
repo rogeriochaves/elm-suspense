@@ -2,9 +2,10 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (..)
+import Html.Attributes exposing (..)
 import MovieDetails
 import MovieList
-import Suspense exposing (Cache, CmdHtml, emptyCache, mapCmdView, saveToCache, timeout)
+import Suspense exposing (Cache, CmdHtml, emptyCache, mapCmdView, mapCmdViewList, saveToCache, timeout)
 import Types exposing (..)
 
 
@@ -35,21 +36,35 @@ init flags =
 
 view : Model -> CmdHtml Msg
 view model =
-    let
-        viewToRender =
-            case model.selectedMovie of
-                Just movie ->
-                    MovieDetails.view model
+    timeout model.suspenseModel
+        { ms = 500, fallback = text "Loading...", key = "movieDetailsTimeout" }
+        (mapCmdViewList
+            [ MovieList.view model, MovieDetails.view model ]
+            (\pages ->
+                let
+                    detailsSlide =
+                        if model.selectedMovie == Nothing then
+                            []
 
-                Nothing ->
-                    MovieList.view model
-    in
-    mapCmdView
-        (timeout model.suspenseModel
-            { ms = 500, fallback = text "Loading...", key = "movieDetailsTimeout" }
-            viewToRender
+                        else
+                            [ style "transform" "translateX(-50%)" ]
+                in
+                div
+                    [ style "max-width" "500px"
+                    , style "width" "100%"
+                    , style "overflow-x" "hidden"
+                    ]
+                    [ div
+                        ([ style "width" "200%"
+                         , style "display" "flex"
+                         , style "transition" "transform 350ms ease-in-out"
+                         ]
+                            ++ detailsSlide
+                        )
+                        pages
+                    ]
+            )
         )
-        identity
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

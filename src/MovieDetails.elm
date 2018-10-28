@@ -17,7 +17,7 @@ view model =
             mapCmdView
                 (detailsView model movie)
                 (\detailsView_ ->
-                    div []
+                    div [ style "width" "100%" ]
                         [ button [ onClick BackToSearch ] [ text "Back" ]
                         , br [] []
                         , h1 [] [ text movie.title ]
@@ -27,7 +27,7 @@ view model =
                 )
 
         Nothing ->
-            fromView (text "")
+            fromView (div [ style "width" "100%" ] [ ])
 
 
 detailsView : Model -> Movie -> CmdHtml Msg

@@ -18,7 +18,7 @@ view model =
             (resultsView model)
         )
         (\resultsView_ ->
-            div [ style "max-width" "500px", style "width" "100%" ]
+            div [ style "width" "100%" ]
                 [ text "Movie Search"
                 , br [] []
                 , input [ onInput UpdateSearch ] []
