@@ -25,8 +25,8 @@ saveToCache key item cache =
 
 
 type CmdView view msg
-    = Suspend CacheKey (List (Msg view)) (Cmd msg) (Maybe view)
-    | Resume CacheKey (List (Msg view)) (Cmd msg) view
+    = Suspend (List (Msg view)) (Cmd msg) (Maybe view)
+    | Resume (List (Msg view)) (Cmd msg) view
 
 
 type alias CmdHtml msg =
@@ -36,6 +36,7 @@ type alias CmdHtml msg =
 type Msg view
     = StartTimeout CacheKey Float
     | EndTimeout CacheKey
+    | ClearTimeout CacheKey
     | CacheRequest CacheKey
     | ImgLoaded CacheKey
     | SaveSnapshot CacheKey view
@@ -76,6 +77,9 @@ update msg model =
         EndTimeout key ->
             ( { model | timedOut = { key = key, state = TimedOut } }, Cmd.none )
 
+        ClearTimeout key ->
+            ( { model | timedOut = { key = key, state = NotStarted } }, Cmd.none )
+
         CacheRequest key ->
             ( { model | requestedToCache = model.requestedToCache ++ [ key ] }, Cmd.none )
 
@@ -105,7 +109,7 @@ updateView msgMapper view ( model, updateCmd ) =
                 msgs
     in
     case updatedView of
-        Suspend _ msgs viewCmd view_ ->
+        Suspend msgs viewCmd view_ ->
             let
                 ( suspenseModel, suspenseCmds ) =
                     foldMsgs msgs
@@ -121,7 +125,7 @@ updateView msgMapper view ( model, updateCmd ) =
                     in
                     ( model, Cmd.batch [ viewCmd, updateCmd ] )
 
-        Resume _ msgs viewCmd view_ ->
+        Resume msgs viewCmd view_ ->
             let
                 ( suspenseModel, suspenseCmds ) =
                     foldMsgs msgs
@@ -135,29 +139,29 @@ getFromCache model { cache, key, load } render =
         -- Cache Hit
         ( Just result, _ ) ->
             case render result of
-                Suspend _ msgs cmd_ child ->
-                    Suspend key msgs cmd_ child
+                Suspend msgs cmd_ child ->
+                    Suspend msgs cmd_ child
 
-                Resume _ msgs cmd_ child ->
-                    Resume key msgs cmd_ child
+                Resume msgs cmd_ child ->
+                    Resume msgs cmd_ child
 
         -- Cache Miss, but requested
         ( Nothing, True ) ->
-            Suspend key [] Cmd.none Nothing
+            Suspend [] Cmd.none Nothing
 
         -- Cache miss, not requested
         ( Nothing, False ) ->
-            Suspend key [ CacheRequest key ] load Nothing
+            Suspend [ CacheRequest key ] load Nothing
 
 
 mapCmdView : CmdView view msg -> (view -> view) -> CmdView view msg
 mapCmdView cmdView render =
     case cmdView of
-        Suspend key msgs cmd child ->
-            Suspend key msgs cmd (Maybe.map render child)
+        Suspend msgs cmd child ->
+            Suspend msgs cmd (Maybe.map render child)
 
-        Resume key msgs cmd child ->
-            Resume key msgs cmd (render <| child)
+        Resume msgs cmd child ->
+            Resume msgs cmd (render <| child)
 
 
 mapCmdViewList : List (CmdView view msg) -> (List view -> view) -> CmdView view msg
@@ -167,42 +171,40 @@ mapCmdViewList cmdViewList render =
             List.foldl
                 (\cmdView result_ ->
                     case cmdView of
-                        Resume key msgs cmd item ->
+                        Resume msgs cmd item ->
                             { result_
                                 | msgs = result_.msgs ++ msgs
                                 , cmds = result_.cmds ++ [ cmd ]
                                 , list = result_.list ++ [ item ]
-                                , key = result_.key ++ key
                             }
 
-                        Suspend key msgs cmd item ->
+                        Suspend msgs cmd item ->
                             { result_
                                 | resume = False
                                 , msgs = result_.msgs ++ msgs
                                 , cmds = result_.cmds ++ [ cmd ]
                                 , list = result_.list ++ (Maybe.map (\i -> [ i ]) item |> Maybe.withDefault [])
-                                , key = result_.key ++ key
                             }
                 )
-                { resume = True, msgs = [], cmds = [], list = [], key = "" }
+                { resume = True, msgs = [], cmds = [], list = [] }
                 cmdViewList
     in
     if result.resume then
-        Resume result.key result.msgs (Cmd.batch result.cmds) (render result.list)
+        Resume result.msgs (Cmd.batch result.cmds) (render result.list)
 
     else
-        Suspend result.key result.msgs (Cmd.batch result.cmds) (Just <| render result.list)
+        Suspend result.msgs (Cmd.batch result.cmds) (Just <| render result.list)
 
 
 fromView : view -> CmdView view msg
 fromView =
-    Resume "" [] Cmd.none
+    Resume [] Cmd.none
 
 
-timeout : Model view -> { ms : Float, fallback : view } -> CmdView view msg -> CmdView view msg
-timeout model { ms, fallback } cmdView =
-    case cmdView of
-        Suspend key msgs cmd child ->
+timeout : Model view -> { ms : Float, fallback : view, key : CacheKey } -> CmdView view msg -> CmdView view msg
+timeout model { ms, fallback, key } cmdView =
+    case snapshot model { key = key } cmdView of
+        Suspend msgs cmd child ->
             let
                 child_ =
                     child |> Maybe.withDefault fallback
@@ -210,29 +212,29 @@ timeout model { ms, fallback } cmdView =
             if key == model.timedOut.key then
                 case model.timedOut.state of
                     TimedOut ->
-                        Resume key msgs cmd fallback
+                        Resume msgs cmd fallback
 
                     Waiting ->
-                        Resume key msgs cmd child_
+                        Resume msgs cmd child_
 
                     NotStarted ->
-                        Resume key (msgs ++ [ StartTimeout key ms ]) cmd child_
+                        Resume (msgs ++ [ StartTimeout key ms ]) cmd child_
 
             else
-                Resume key (msgs ++ [ StartTimeout key ms ]) cmd child_
+                Resume (msgs ++ [ StartTimeout key ms ]) cmd child_
 
-        Resume key msgs cmd child ->
-            Resume key msgs cmd child
+        Resume msgs cmd child ->
+            Resume (msgs ++ [ ClearTimeout key ]) cmd child
 
 
 snapshot : Model view -> { key : CacheKey } -> CmdView view msg -> CmdView view msg
 snapshot model { key } cmdView =
     case ( cmdView, Dict.get key model.snapshotsCache ) of
-        ( Resume key_ msgs cmd child, _ ) ->
-            Resume key_ (msgs ++ [ SaveSnapshot key child ]) cmd child
+        ( Resume msgs cmd child, _ ) ->
+            Resume (msgs ++ [ SaveSnapshot key child ]) cmd child
 
-        ( Suspend key_ msgs cmd _, Just snapshot_ ) ->
-            Suspend key_ msgs cmd (Just snapshot_)
+        ( Suspend msgs cmd _, Just snapshot_ ) ->
+            Suspend msgs cmd (Just snapshot_)
 
         ( _, Nothing ) ->
             cmdView

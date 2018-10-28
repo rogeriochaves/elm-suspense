@@ -14,11 +14,8 @@ view : Model -> CmdHtml Msg
 view model =
     mapCmdView
         (timeout model.suspenseModel
-            { ms = 400, fallback = text "Loading..." }
-            (snapshot model.suspenseModel
-                { key = "moviesListTimeout" }
-                (resultsView model)
-            )
+            { ms = 400, fallback = text "Loading...", key = "moviesListTimeout" }
+            (resultsView model)
         )
         (\resultsView_ ->
             div []
