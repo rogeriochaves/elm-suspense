@@ -8,13 +8,15 @@ Usually in Elm the data fetching is at the router or some other place far from t
 
 ### Suspend and timeout for loading pattern in fast connections
 
-For slow internet speeds we usually show a "Loading" message for the users, which is great and [elm helps us a lot not forgetting that](http://blog.jenkster.com/2016/06/how-elm-slays-a-ui-antipattern.html). But, for fast internet connections, a "Loading" flicking really quick all the time can be very annoying.
+For slow internet speeds we usually show a "Loading" message for the users, which is great and [elm notably helps us a lot about not forgetting that](http://blog.jenkster.com/2016/06/how-elm-slays-a-ui-antipattern.html). But, for fast internet connections, a "Loading" flicking really quick all the time can be very annoying.
 
-We do not have to decide between one case or the other though, we can make the experience great for **both** at the same time, and suspend helps with that with the timeout component, that shows a "Loading" message only after some miliseconds
+We do not have to decide between one case or the other though, we can make the experience great for **both** at once, and suspend helps with that through the timeout component, which shows a "Loading" message, but only after some miliseconds.
 
 ### Preloading of images
 
-On the web its common to render the html as soon as we get it, and different pieces like images load one after another, from top to bottom, causing a lot of layout changes until everything is in place, but we could have a better experience than that. With suspense, we can wait util everything is fully ready before rendering the screen for the use
+On the web it's common to render the html as soon as we get it, and different pieces like images load one after another, top to bottom, causing a lot of layout changes until everything's in place.
+
+But we can have a better experience than that, with suspense, we can wait util everything is fully ready before rendering the screen for the user.
 
 ## Demo
 
