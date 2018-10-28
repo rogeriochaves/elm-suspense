@@ -1,4 +1,4 @@
-module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, getFromImgCache, init, mapCmdView, mapCmdViewList, saveToCache, snapshot, timeout, update, updateHtmlView, updateView)
+module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, init, mapCmdView, mapCmdViewList, preloadImg, saveToCache, snapshot, timeout, update, updateHtmlView, updateView)
 
 import Dict exposing (Dict)
 import Html exposing (..)
@@ -108,11 +108,11 @@ update msg model =
 updateHtmlView : (Msg (Html msg) -> msg) -> ({ model | view : Html msg, suspenseModel : Model (Html msg) } -> CmdView (Html msg) msg) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg ) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg )
 updateHtmlView msgMapper view return =
     updateView msgMapper view return
-        |> preloadImgs msgMapper
+        |> appendHtmlImgsToPreload msgMapper
 
 
-preloadImgs : (Msg view -> msg) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg ) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg )
-preloadImgs msgMapper ( model, cmd ) =
+appendHtmlImgsToPreload : (Msg view -> msg) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg ) -> ( { model | view : Html msg, suspenseModel : Model (Html msg) }, Cmd msg )
+appendHtmlImgsToPreload msgMapper ( model, cmd ) =
     let
         imgsToLoad =
             List.map
@@ -180,6 +180,16 @@ getFromCache =
 getFromImgCache : Model view -> { cache : Cache a, key : CacheKey, load : Cmd msg } -> (a -> CmdView view msg) -> CmdView view msg
 getFromImgCache =
     getFromCache_ True
+
+
+preloadImg : Model view -> { src : String } -> view -> CmdView view msg
+preloadImg model { src } view =
+    getFromImgCache model
+        { cache = model.imgsCache
+        , key = src
+        , load = Cmd.none
+        }
+        (\_ -> fromView view)
 
 
 getFromCache_ : Bool -> Model view -> { cache : Cache a, key : CacheKey, load : Cmd msg } -> (a -> CmdView view msg) -> CmdView view msg

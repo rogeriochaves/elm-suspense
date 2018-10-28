@@ -5,7 +5,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (CmdHtml, fromView, getFromCache, getFromImgCache, mapCmdView, mapCmdViewList, snapshot, timeout)
+import Suspense exposing (CmdHtml, fromView, getFromCache, mapCmdView, mapCmdViewList, preloadImg, timeout)
 import Types exposing (..)
 import Url
 
@@ -60,17 +60,12 @@ resultView model result =
         imgSrc =
             "https://image.tmdb.org/t/p/w92" ++ result.posterPath
     in
-    getFromImgCache model.suspenseModel
-        { cache = model.suspenseModel.imgsCache
-        , key = imgSrc
-        , load = Cmd.none
-        }
-        (\data ->
-            fromView <|
-                li []
-                    [ img [ src imgSrc ] []
-                    , text result.name
-                    ]
+    preloadImg model.suspenseModel
+        { src = imgSrc }
+        (li []
+            [ img [ src imgSrc ] []
+            , text result.name
+            ]
         )
 
 
