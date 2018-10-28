@@ -18,7 +18,7 @@ view model =
             (resultsView model)
         )
         (\resultsView_ ->
-            div []
+            div [ style "max-width" "500px", style "width" "100%" ]
                 [ text "Movie Search"
                 , br [] []
                 , input [ onInput UpdateSearch ] []
@@ -30,28 +30,36 @@ view model =
 
 resultsView : Model -> CmdHtml Msg
 resultsView model =
-    getFromCache model.suspenseModel
-        { cache = model.moviesCache
-        , key = model.searchInput
-        , load = loadMovies model.searchInput
-        }
-        (\data ->
-            case data of
-                Ok movies ->
-                    mapCmdViewList
-                        (List.map (resultView model) movies)
-                        (\resultView_ ->
-                            div
-                                []
-                                [ text "Results:"
-                                , br [] []
-                                , ul [] resultView_
-                                ]
-                        )
+    if String.isEmpty model.searchInput then
+        fromView (text "")
 
-                Err _ ->
-                    fromView <| text "error loading movies"
-        )
+    else
+        getFromCache model.suspenseModel
+            { cache = model.moviesCache
+            , key = model.searchInput
+            , load = loadMovies model.searchInput
+            }
+            (\data ->
+                case data of
+                    Ok movies ->
+                        mapCmdViewList
+                            (List.map (resultView model) movies)
+                            (\resultView_ ->
+                                div
+                                    []
+                                    [ text "Results:"
+                                    , br [] []
+                                    , ul
+                                        [ style "list-style" "none"
+                                        , style "padding" "0"
+                                        ]
+                                        resultView_
+                                    ]
+                            )
+
+                    Err _ ->
+                        fromView <| text "error loading movies"
+            )
 
 
 resultView : Model -> Movie -> CmdHtml Msg
@@ -62,8 +70,17 @@ resultView model result =
     in
     preloadImg model.suspenseModel
         { src = imgSrc }
-        (li []
-            [ img [ src imgSrc ] []
+        (li
+            [ style "display" "flex"
+            , style "align-items" "center"
+            , style "border" "1px solid #666"
+            , style "margin-bottom" "-1px"
+            ]
+            [ img
+                [ src imgSrc
+                , style "padding-right" "10px"
+                ]
+                []
             , text result.name
             ]
         )

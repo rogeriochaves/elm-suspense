@@ -27,7 +27,7 @@ init flags =
             , moviesCache = emptyCache
             }
     in
-    Suspense.updateView SuspenseMsg view ( model, Cmd.none )
+    Suspense.updateHtmlView SuspenseMsg view ( model, Cmd.none )
 
 
 view : Model -> CmdHtml Msg
