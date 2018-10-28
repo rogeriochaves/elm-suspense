@@ -42,13 +42,22 @@ detailsView model movie =
         , load = loadMovie movieId
         }
         (\data ->
-            fromView <|
-                case data of
+            let
+                imgSrc =
+                    "https://image.tmdb.org/t/p/w185" ++ movie.posterPath
+            in
+            preloadImg model.suspenseModel
+                { src = imgSrc }
+                (case data of
                     Ok movieDetails ->
-                        p [] [ text movieDetails.overview ]
+                        div []
+                            [ p [] [ img [ src imgSrc ] [] ]
+                            , p [] [ text movieDetails.overview ]
+                            ]
 
                     Err _ ->
                         text "error loading movie details"
+                )
         )
 
 

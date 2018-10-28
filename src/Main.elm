@@ -46,7 +46,7 @@ view model =
     in
     mapCmdView
         (timeout model.suspenseModel
-            { ms = 500, fallback = text "Loading2...", key = "movieDetailsTimeout" }
+            { ms = 500, fallback = text "Loading...", key = "movieDetailsTimeout" }
             viewToRender
         )
         identity
