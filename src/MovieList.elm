@@ -5,7 +5,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Http exposing (..)
 import Json.Decode as Decode
-import Suspense exposing (CmdHtml, fromView, getFromCache, mapCmdView, mapCmdViewList, snapshot, timeout)
+import Suspense exposing (CmdHtml, fromView, getFromCache, getFromImgCache, mapCmdView, mapCmdViewList, snapshot, timeout)
 import Types exposing (..)
 import Url
 
@@ -14,7 +14,7 @@ view : Model -> CmdHtml Msg
 view model =
     mapCmdView
         (timeout model.suspenseModel
-            { ms = 400, fallback = text "Loading...", key = "moviesListTimeout" }
+            { ms = 500, fallback = text "Loading...", key = "moviesListTimeout" }
             (resultsView model)
         )
         (\resultsView_ ->
@@ -60,10 +60,10 @@ resultView model result =
         imgSrc =
             "https://image.tmdb.org/t/p/w92" ++ result.posterPath
     in
-    getFromCache model.suspenseModel
+    getFromImgCache model.suspenseModel
         { cache = model.suspenseModel.imgsCache
         , key = imgSrc
-        , load = loadImg imgSrc
+        , load = Cmd.none
         }
         (\data ->
             fromView <|
@@ -72,13 +72,6 @@ resultView model result =
                     , text result.name
                     ]
         )
-
-
-loadImg : String -> Cmd Msg
-loadImg src =
-    Http.send
-        (always <| SuspenseMsg <| Suspense.ImgLoaded src)
-        (Http.get src (Decode.succeed ()))
 
 
 loadMovies : String -> Cmd Msg

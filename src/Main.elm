@@ -12,7 +12,7 @@ main =
     Browser.element
         { init = init
         , view = .view
-        , update = \msg model -> Suspense.updateView SuspenseMsg view <| update msg model
+        , update = \msg model -> Suspense.updateHtmlView SuspenseMsg view <| update msg model
         , subscriptions = always Sub.none
         }
 
