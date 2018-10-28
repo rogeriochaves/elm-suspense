@@ -63,15 +63,16 @@ resultsView model =
 
 
 resultView : Model -> Movie -> CmdHtml Msg
-resultView model result =
+resultView model movie =
     let
         imgSrc =
-            "https://image.tmdb.org/t/p/w92" ++ result.posterPath
+            "https://image.tmdb.org/t/p/w92" ++ movie.posterPath
     in
     preloadImg model.suspenseModel
         { src = imgSrc }
         (li
-            [ style "display" "flex"
+            [ onClick (ShowMovieDetails movie)
+            , style "display" "flex"
             , style "align-items" "center"
             , style "border" "1px solid #666"
             , style "margin-bottom" "-1px"
@@ -81,7 +82,7 @@ resultView model result =
                 , style "padding-right" "10px"
                 ]
                 []
-            , text result.name
+            , text movie.title
             ]
         )
 
@@ -102,7 +103,8 @@ moviesDecoder : Decode.Decoder (List Movie)
 moviesDecoder =
     Decode.field "results"
         (Decode.list
-            (Decode.map2 Movie
+            (Decode.map3 Movie
+                (Decode.field "id" Decode.int)
                 (Decode.field "title" Decode.string)
                 (Decode.oneOf
                     [ Decode.field "poster_path" Decode.string

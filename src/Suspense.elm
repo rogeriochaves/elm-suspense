@@ -1,4 +1,4 @@
-module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, init, mapCmdView, mapCmdViewList, preloadImg, saveToCache, snapshot, timeout, update, updateHtmlView, updateView)
+module Suspense exposing (Cache, CmdHtml, Model, Msg(..), emptyCache, fromView, getFromCache, init, mapCmdView, mapCmdViewList, preloadImg, removeFromCache, saveToCache, snapshot, timeout, update, updateHtmlView, updateView)
 
 import Dict exposing (Dict)
 import Html exposing (..)
@@ -24,8 +24,13 @@ emptyCache =
 
 
 saveToCache : CacheKey -> a -> Cache a -> Cache a
-saveToCache key item cache =
-    Dict.insert key item cache
+saveToCache =
+    Dict.insert
+
+
+removeFromCache : CacheKey -> Cache a -> Cache a
+removeFromCache =
+    Dict.remove
 
 
 type CmdView view msg
@@ -48,7 +53,7 @@ type Msg view
 
 
 type alias Model view =
-    { timedOut : { key : CacheKey, state : TimedOut }
+    { timeouts : Cache Timeout
     , requestedToCache : Set CacheKey
     , imgsCache : Cache ()
     , snapshotsCache : Cache view
@@ -56,15 +61,14 @@ type alias Model view =
     }
 
 
-type TimedOut
-    = NotStarted
-    | Waiting
+type Timeout
+    = Waiting
     | TimedOut
 
 
 init : Model view
 init =
-    { timedOut = { key = "", state = NotStarted }
+    { timeouts = emptyCache
     , requestedToCache = Set.empty
     , imgsCache = emptyCache
     , snapshotsCache = emptyCache
@@ -76,16 +80,16 @@ update : Msg view -> Model view -> ( Model view, Cmd (Msg view) )
 update msg model =
     case msg of
         StartTimeout key ms ->
-            ( { model | timedOut = { key = key, state = Waiting } }
+            ( { model | timeouts = saveToCache key Waiting model.timeouts }
             , Process.sleep ms
                 |> Task.perform (always <| EndTimeout key)
             )
 
         EndTimeout key ->
-            ( { model | timedOut = { key = key, state = TimedOut } }, Cmd.none )
+            ( { model | timeouts = saveToCache key TimedOut model.timeouts }, Cmd.none )
 
         ClearTimeout key ->
-            ( { model | timedOut = { key = key, state = NotStarted } }, Cmd.none )
+            ( { model | timeouts = removeFromCache key model.timeouts }, Cmd.none )
 
         CacheRequest key ->
             ( { model | requestedToCache = Set.insert key model.requestedToCache }, Cmd.none )
@@ -276,19 +280,15 @@ timeout model { ms, fallback, key } cmdView =
                 child_ =
                     child |> Maybe.withDefault fallback
             in
-            if key == model.timedOut.key then
-                case model.timedOut.state of
-                    TimedOut ->
-                        Resume msgs cmd fallback
+            case Dict.get key model.timeouts of
+                Nothing ->
+                    Resume (msgs ++ [ StartTimeout key ms ]) cmd child_
 
-                    Waiting ->
-                        Resume msgs cmd child_
+                Just TimedOut ->
+                    Resume msgs cmd fallback
 
-                    NotStarted ->
-                        Resume (msgs ++ [ StartTimeout key ms ]) cmd child_
-
-            else
-                Resume (msgs ++ [ StartTimeout key ms ]) cmd child_
+                Just Waiting ->
+                    Resume msgs cmd child_
 
         Resume msgs cmd child ->
             Resume (msgs ++ [ ClearTimeout key ]) cmd child

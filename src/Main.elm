@@ -2,8 +2,9 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (..)
+import MovieDetails
 import MovieList
-import Suspense exposing (Cache, CmdHtml, emptyCache, saveToCache)
+import Suspense exposing (Cache, CmdHtml, emptyCache, mapCmdView, saveToCache, timeout)
 import Types exposing (..)
 
 
@@ -25,14 +26,30 @@ init flags =
             , view = text ""
             , searchInput = ""
             , moviesCache = emptyCache
+            , selectedMovie = Nothing
+            , movieDetailsCache = emptyCache
             }
     in
     Suspense.updateHtmlView SuspenseMsg view ( model, Cmd.none )
 
 
 view : Model -> CmdHtml Msg
-view =
-    MovieList.view
+view model =
+    let
+        viewToRender =
+            case model.selectedMovie of
+                Just movie ->
+                    MovieDetails.view model
+
+                Nothing ->
+                    MovieList.view model
+    in
+    mapCmdView
+        (timeout model.suspenseModel
+            { ms = 500, fallback = text "Loading2...", key = "movieDetailsTimeout" }
+            viewToRender
+        )
+        identity
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -50,3 +67,12 @@ update msg model =
                     Suspense.update msg_ model.suspenseModel
             in
             ( { model | suspenseModel = model_ }, Cmd.map SuspenseMsg cmd )
+
+        ShowMovieDetails movie ->
+            ( { model | selectedMovie = Just movie }, Cmd.none )
+
+        BackToSearch ->
+            ( { model | selectedMovie = Nothing }, Cmd.none )
+
+        MovieDetailsLoaded id result ->
+            ( { model | movieDetailsCache = saveToCache id result model.movieDetailsCache }, Cmd.none )
