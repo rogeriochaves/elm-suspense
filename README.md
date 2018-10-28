@@ -46,6 +46,64 @@ The user now knows it's loading, but does not receive a broken experience anymor
 
 ![slow-connection-with-suspense](https://user-images.githubusercontent.com/792201/47619624-3e266300-dae1-11e8-93dd-b35b9d81d54e.gif)
 
+## How it works
+
+### Loading data
+
+In order for all this to work, I had to subvert the elm-architecture a little bit to be able to return Cmds while rendering, which means that you can load data, but that's nicely wrapper around the idea of caches to your date. If you have a view that needs to load some data, you can do it like this:
+
+```elm
+myView : Model -> String -> CmdHtml Msg
+myView model id =
+    getFromCache model.suspenseModel
+        { cache = model.myCache
+        , key = id
+        , load = someHttpRequest id -- this is the actual request
+        }
+        (\data ->
+            div []
+              [ ...render it here...
+              ]
+        )
+```
+
+### Adding a timeout
+
+On the example above, the view won't render until the data is ready, but sometimes you want to render at least something to give feedback to the user, you can do that using the `timeout` function, in which you can specify a fallback and a time for it to show. You can also replace this with the `suspense` function if you don't want to have any fallbacks.
+
+The interesting part is that this function can be many parents above with many levels of suspended or regular views inside it, it's not directly bound to the data loading.
+
+```elm
+waitForMyView : Model -> String -> CmdHtml Msg
+waitForMyView model id =
+    (timeout model.suspenseModel
+        { ms = 500, fallback = text "Loading...", key = "myViewTimeout" }
+        (myView model id)
+    )
+```
+
+### Preloading images
+
+You can use the function `preloadImg` to render a view only after a image is loaded, it's as simple as this:
+
+```elm
+myViewWithImg : Model -> CmdHtml Msg
+myViewWithImg model =
+    preloadImg model.suspenseModel
+        { src = "myimg.png" }
+        (div [ ]
+            [ img [ src "myimg.png" ] []
+            , text "the image is ready!"
+            ]
+        )
+```
+
+### Other details
+
+There are also other helper functions like `mapCmdView` and `mapCmdViewList` to help you wrapping the html inside the suspense features, and you also need to add some boilerplate on your main `Msg`, `Model` and `Update` for all this architectural change to work. The the `src/` folder for more examples.
+
 ## Run it yourself
 
 You can just clone the project and run `elm reactor`
+
+Suggestions and PRs are welcome!
