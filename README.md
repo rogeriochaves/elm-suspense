@@ -24,13 +24,13 @@ On the web its common to render the html as soon as we get it, and different pie
 
 Notice how everything flicks all the time, blinks of "Loading..." with very fast layout changes all the time
 
-![fast-connection-no-suspense](https://user-images.githubusercontent.com/792201/47619622-3e266300-dae1-11e8-8054-6f10cbc317f2.gif)
+<img src="https://user-images.githubusercontent.com/792201/47619622-3e266300-dae1-11e8-8054-6f10cbc317f2.gif" alt="fast-connection-no-suspense" width="386" />
 
 #### Slow internet connection
 
 With a slow internet the "Loading..." is ok, but the images load little by little, causing a little bit of agony
 
-![slow-connection-no-suspense](https://user-images.githubusercontent.com/792201/47619620-3e266300-dae1-11e8-8542-bb378d7f0d94.gif)
+<img src="https://user-images.githubusercontent.com/792201/47619620-3e266300-dae1-11e8-8542-bb378d7f0d94.gif" alt="slow-connection-no-suspense" width="388" />
 
 ### With Suspense Features
 
@@ -38,13 +38,13 @@ With a slow internet the "Loading..." is ok, but the images load little by littl
 
 Everything looks instant now, no more screen flickings or layout change
 
-![fast-connection-with-suspense](https://user-images.githubusercontent.com/792201/47619623-3e266300-dae1-11e8-9bc9-521e68b59b7d.gif)
+<img src="https://user-images.githubusercontent.com/792201/47619623-3e266300-dae1-11e8-9bc9-521e68b59b7d.gif" alt="fast-connection-with-suspense" width="384" />
 
 #### Slow internet connection
 
 The user now knows it's loading, but does not receive a broken experience anymore, we wait util everything is ready to show
 
-![slow-connection-with-suspense](https://user-images.githubusercontent.com/792201/47619624-3e266300-dae1-11e8-93dd-b35b9d81d54e.gif)
+<img src="https://user-images.githubusercontent.com/792201/47619624-3e266300-dae1-11e8-93dd-b35b9d81d54e.gif" alt="slow-connection-with-suspense" width="384" />
 
 ## How it works
 
